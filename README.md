@@ -2,6 +2,10 @@
 
 這是一個模擬農場經營的遊戲，玩家可以種植作物、養殖動物、製作產品並在市場上銷售。
 
+## 遊戲演示
+
+你可以在這裡體驗遊戲：[豪力的小農場](https://你的GitHub用戶名.github.io/farm-simulator/)
+
 ## 功能特色
 
 - 種植多種作物（小麥、胡蘿蔔、玉米、番茄）
@@ -42,6 +46,22 @@ npm run build
 ```bash
 npm run preview
 ```
+
+## 部署到 GitHub Pages
+
+這個項目已經配置好了 GitHub Actions 工作流程，可以自動部署到 GitHub Pages。
+
+1. 在 GitHub 上創建一個新的倉庫
+2. 將本地倉庫推送到 GitHub：
+
+```bash
+git remote add origin https://github.com/你的GitHub用戶名/farm-simulator.git
+git branch -M main
+git push -u origin main
+```
+
+3. 在 GitHub 倉庫設置中啟用 GitHub Pages，選擇 "GitHub Actions" 作為來源
+4. 推送代碼到 main 分支後，GitHub Actions 會自動構建並部署網站
 
 ## 遊戲玩法
 
