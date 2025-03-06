@@ -42,12 +42,23 @@ interface Inventory {
   [key: string]: number;
 }
 
+// 定義天氣類型
+interface Weather {
+  type: WeatherType;
+  name: string;
+  cropGrowthEffect: number; // 作物生長速度影響 (1.0 = 正常)
+  animalProductionEffect: number; // 動物產出速度影響 (1.0 = 正常)
+  energyConsumptionEffect: number; // 能量消耗影響 (1.0 = 正常)
+  description: string;
+}
+
 // 定義作物、動物和配方的類型
 type CropTypes = "wheat" | "carrot" | "corn" | "tomato";
 type AnimalTypes = "chicken" | "cow" | "sheep";
 type RecipeTypes = "bread" | "cheese" | "yarn" | "tomatoSoup";
 type TabTypes = "farm" | "animals" | "craft" | "market" | "inventory";
 type CategoryType = "crop" | "animal" | "recipe" | "unknown";
+type WeatherType = "sunny" | "rainy" | "cloudy" | "stormy" | "drought";
 
 const FarmSimulator = () => {
   // 遊戲狀態
@@ -61,6 +72,7 @@ const FarmSimulator = () => {
   const [gameSpeed, setGameSpeed] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<TabTypes>("farm");
   const [notification, setNotification] = useState<string | null>(null);
+  const [currentWeather, setCurrentWeather] = useState<WeatherType>("sunny");
 
   // 作物定義
   const crops: Record<CropTypes, Crop> = {
@@ -153,6 +165,50 @@ const FarmSimulator = () => {
     },
   };
 
+  // 天氣定義
+  const weatherTypes: Record<WeatherType, Weather> = {
+    sunny: {
+      type: "sunny",
+      name: "晴天",
+      cropGrowthEffect: 1.2, // 作物生長更快
+      animalProductionEffect: 1.0,
+      energyConsumptionEffect: 0.9, // 消耗較少能量
+      description: "陽光明媚，適合作物生長。",
+    },
+    rainy: {
+      type: "rainy",
+      name: "雨天",
+      cropGrowthEffect: 1.1, // 作物生長稍快
+      animalProductionEffect: 0.9, // 動物產出稍慢
+      energyConsumptionEffect: 1.1, // 消耗較多能量
+      description: "下雨天，作物得到充足水分。",
+    },
+    cloudy: {
+      type: "cloudy",
+      name: "多雲",
+      cropGrowthEffect: 1.0, // 正常生長
+      animalProductionEffect: 1.0, // 正常產出
+      energyConsumptionEffect: 1.0, // 正常消耗
+      description: "天氣多雲，一切正常。",
+    },
+    stormy: {
+      type: "stormy",
+      name: "暴風雨",
+      cropGrowthEffect: 0.7, // 作物生長較慢
+      animalProductionEffect: 0.7, // 動物產出較慢
+      energyConsumptionEffect: 1.3, // 消耗更多能量
+      description: "暴風雨天氣，作物生長受阻。",
+    },
+    drought: {
+      type: "drought",
+      name: "乾旱",
+      cropGrowthEffect: 0.6, // 作物生長很慢
+      animalProductionEffect: 0.8, // 動物產出較慢
+      energyConsumptionEffect: 1.2, // 消耗較多能量
+      description: "乾旱天氣，作物需要更多照顧。",
+    },
+  };
+
   // 遊戲時間控制
   useEffect(() => {
     let gameTimer: number | undefined;
@@ -168,25 +224,82 @@ const FarmSimulator = () => {
 
   // 更新遊戲時間
   const advanceDay = () => {
-    // 更新作物生長
+    // 隨機更新天氣
+    const weatherTypesList: WeatherType[] = [
+      "sunny",
+      "rainy",
+      "cloudy",
+      "stormy",
+      "drought",
+    ];
+    const weights = [0.35, 0.25, 0.25, 0.1, 0.05]; // 權重，使晴天和雨天更常見
+
+    // 根據權重隨機選擇天氣
+    let random = Math.random();
+    let cumulativeWeight = 0;
+    let selectedWeather: WeatherType = "sunny";
+
+    for (let i = 0; i < weatherTypesList.length; i++) {
+      cumulativeWeight += weights[i];
+      if (random <= cumulativeWeight) {
+        selectedWeather = weatherTypesList[i];
+        break;
+      }
+    }
+
+    setCurrentWeather(selectedWeather);
+    setNotification(
+      `今天是${weatherTypes[selectedWeather].name}：${weatherTypes[selectedWeather].description}`
+    );
+    setTimeout(() => setNotification(null), 3000);
+
+    // 獲取當前天氣效果
+    const weatherEffect = weatherTypes[currentWeather];
+
+    // 更新作物生長，考慮天氣影響
     const newFields = [...fields];
     newFields.forEach((field, index) => {
       if (field && field.daysLeft > 0) {
-        newFields[index] = { ...field, daysLeft: field.daysLeft - 1 };
+        // 計算天氣對生長的影響
+        const growthProgress = weatherEffect.cropGrowthEffect;
+        // 如果生長進度大於等於1，則減少一天生長時間
+        if (growthProgress >= 1) {
+          newFields[index] = { ...field, daysLeft: field.daysLeft - 1 };
+        } else {
+          // 如果是不利天氣，有機率不減少生長時間
+          const shouldGrow = Math.random() < growthProgress;
+          if (shouldGrow) {
+            newFields[index] = { ...field, daysLeft: field.daysLeft - 1 };
+          }
+        }
       }
     });
     setFields(newFields);
 
-    // 更新動物生產
+    // 更新動物生產，考慮天氣影響
     const newAnimals = [...animals];
     const inventoryCopy = { ...inventory };
 
     newAnimals.forEach((animal, index) => {
       if (animal.daysUntilProduction > 0) {
-        newAnimals[index] = {
-          ...animal,
-          daysUntilProduction: animal.daysUntilProduction - 1,
-        };
+        // 計算天氣對生產的影響
+        const productionProgress = weatherEffect.animalProductionEffect;
+        // 如果生產進度大於等於1，則減少一天生產時間
+        if (productionProgress >= 1) {
+          newAnimals[index] = {
+            ...animal,
+            daysUntilProduction: animal.daysUntilProduction - 1,
+          };
+        } else {
+          // 如果是不利天氣，有機率不減少生產時間
+          const shouldProduce = Math.random() < productionProgress;
+          if (shouldProduce) {
+            newAnimals[index] = {
+              ...animal,
+              daysUntilProduction: animal.daysUntilProduction - 1,
+            };
+          }
+        }
       } else {
         // 產出產品
         const product = animalTypes[animal.type].product;
@@ -224,7 +337,14 @@ const FarmSimulator = () => {
       setNotification("金錢不足！");
       return;
     }
-    if (energy < crops[cropType].energyCost) {
+
+    // 考慮天氣對能量消耗的影響
+    const weatherEffect = weatherTypes[currentWeather];
+    const adjustedEnergyCost = Math.ceil(
+      crops[cropType].energyCost * weatherEffect.energyConsumptionEffect
+    );
+
+    if (energy < adjustedEnergyCost) {
       setNotification("體力不足！");
       return;
     }
@@ -238,7 +358,16 @@ const FarmSimulator = () => {
 
     setFields(newFields);
     setMoney(money - crops[cropType].cost);
-    setEnergy(energy - crops[cropType].energyCost);
+    setEnergy(energy - adjustedEnergyCost);
+
+    // 顯示天氣影響的通知
+    if (weatherEffect.cropGrowthEffect > 1) {
+      setNotification(`${weatherTypes[currentWeather].name}有利於作物生長！`);
+      setTimeout(() => setNotification(null), 3000);
+    } else if (weatherEffect.cropGrowthEffect < 1) {
+      setNotification(`${weatherTypes[currentWeather].name}不利於作物生長！`);
+      setTimeout(() => setNotification(null), 3000);
+    }
   };
 
   // 收穫作物
@@ -246,22 +375,35 @@ const FarmSimulator = () => {
     const field = fields[fieldIndex];
     if (!field || field.daysLeft > 0) return;
 
-    if (energy < 5) {
+    // 考慮天氣對能量消耗的影響
+    const weatherEffect = weatherTypes[currentWeather];
+    const adjustedEnergyCost = Math.ceil(
+      5 * weatherEffect.energyConsumptionEffect
+    );
+
+    if (energy < adjustedEnergyCost) {
       setNotification("體力不足！");
       return;
     }
 
     const cropType = field.type;
     const newInventory = { ...inventory };
-    newInventory[cropType] = (newInventory[cropType] || 0) + 1;
+
+    // 在晴天有機會獲得額外收穫
+    if (currentWeather === "sunny" && Math.random() < 0.3) {
+      newInventory[cropType] = (newInventory[cropType] || 0) + 2;
+      setNotification(`好天氣！收穫了2個${crops[cropType].name}！`);
+    } else {
+      newInventory[cropType] = (newInventory[cropType] || 0) + 1;
+      setNotification(`收穫了${crops[cropType].name}！`);
+    }
 
     const newFields = [...fields];
     newFields[fieldIndex] = null;
 
     setFields(newFields);
     setInventory(newInventory);
-    setEnergy(energy - 5);
-    setNotification(`收穫了${crops[cropType].name}！`);
+    setEnergy(energy - adjustedEnergyCost);
   };
 
   // 購買動物
@@ -289,24 +431,42 @@ const FarmSimulator = () => {
 
   // 照顧動物
   const careForAnimal = (index) => {
-    if (energy < animalTypes[animals[index].type].energyCost) {
+    // 考慮天氣對能量消耗的影響
+    const weatherEffect = weatherTypes[currentWeather];
+    const adjustedEnergyCost = Math.ceil(
+      animalTypes[animals[index].type].energyCost *
+        weatherEffect.energyConsumptionEffect
+    );
+
+    if (energy < adjustedEnergyCost) {
       setNotification("體力不足！");
       return;
     }
 
     // 減少生產時間
     const newAnimals = [...animals];
+
+    // 在好天氣下照顧動物效果更好
+    const careEffect = currentWeather === "sunny" ? 2 : 1;
+
     newAnimals[index] = {
       ...newAnimals[index],
       daysUntilProduction: Math.max(
         0,
-        newAnimals[index].daysUntilProduction - 1
+        newAnimals[index].daysUntilProduction - careEffect
       ),
     };
 
     setAnimals(newAnimals);
-    setEnergy(energy - animalTypes[animals[index].type].energyCost);
-    setNotification(`照顧了${animalTypes[animals[index].type].name}！`);
+    setEnergy(energy - adjustedEnergyCost);
+
+    if (careEffect > 1) {
+      setNotification(
+        `好天氣！照顧${animalTypes[animals[index].type].name}的效果加倍！`
+      );
+    } else {
+      setNotification(`照顧了${animalTypes[animals[index].type].name}！`);
+    }
   };
 
   // 製作產品
@@ -387,7 +547,10 @@ const FarmSimulator = () => {
           <div>第 {day} 天</div>
           <div>$ {money}</div>
           <div>體力: {energy}/100</div>
-          <div className="flex space-x-2">
+          <div className="flex items-center space-x-2">
+            <div className="text-sm mr-2">
+              天氣: {weatherTypes[currentWeather].name}
+            </div>
             <button
               className={`px-2 py-1 rounded ${
                 timeRunning ? "bg-red-500" : "bg-green-500"
@@ -476,7 +639,67 @@ const FarmSimulator = () => {
         {/* 農場界面 */}
         {activeTab === "farm" && (
           <div>
-            <h2 className="text-xl font-bold mb-4">我的農場</h2>
+            <h2 className="text-xl font-bold mb-2">我的農場</h2>
+            <div className="mb-4 p-3 bg-green-100 rounded-lg border border-green-300">
+              <div className="font-medium">
+                今日天氣: {weatherTypes[currentWeather].name}
+              </div>
+              <div className="text-sm text-gray-600">
+                {weatherTypes[currentWeather].description}
+              </div>
+              <div className="mt-1 text-sm">
+                <span
+                  className={`${
+                    weatherTypes[currentWeather].cropGrowthEffect > 1
+                      ? "text-green-600"
+                      : weatherTypes[currentWeather].cropGrowthEffect < 1
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
+                >
+                  作物生長:{" "}
+                  {weatherTypes[currentWeather].cropGrowthEffect > 1
+                    ? "加速"
+                    : weatherTypes[currentWeather].cropGrowthEffect < 1
+                    ? "減慢"
+                    : "正常"}
+                </span>
+                <span className="mx-2">|</span>
+                <span
+                  className={`${
+                    weatherTypes[currentWeather].animalProductionEffect > 1
+                      ? "text-green-600"
+                      : weatherTypes[currentWeather].animalProductionEffect < 1
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
+                >
+                  動物產出:{" "}
+                  {weatherTypes[currentWeather].animalProductionEffect > 1
+                    ? "加速"
+                    : weatherTypes[currentWeather].animalProductionEffect < 1
+                    ? "減慢"
+                    : "正常"}
+                </span>
+                <span className="mx-2">|</span>
+                <span
+                  className={`${
+                    weatherTypes[currentWeather].energyConsumptionEffect < 1
+                      ? "text-green-600"
+                      : weatherTypes[currentWeather].energyConsumptionEffect > 1
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
+                >
+                  體力消耗:{" "}
+                  {weatherTypes[currentWeather].energyConsumptionEffect < 1
+                    ? "減少"
+                    : weatherTypes[currentWeather].energyConsumptionEffect > 1
+                    ? "增加"
+                    : "正常"}
+                </span>
+              </div>
+            </div>
             <div className="grid grid-cols-3 gap-4">
               {fields.map((field, index) => (
                 <div
